@@ -1,85 +1,93 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Nifty Live Pro Analyzer</title>
+    <title>Nifty Live Terminal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/v/bs5/jq-3.7.0/dt-1.13.6/cr-1.7.0/datatables.min.css" rel="stylesheet">
 
     <style>
-        /* 1. INCREASE TABLE SIZE TO FIT WEB PAGE */
-        body {
-            border: 6px solid #0d6efd;
-            min-height: 100vh;
-            background-color: #121212;
-            color: white;
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden; /* Prevent horizontal scroll on body */
-        }
-
-        .container-fluid {
-            padding-left: 5px;
-            padding-right: 5px;
-            width: 100% !important;
-        }
-
+        body { border: 6px solid #0d6efd; min-height: 100vh; background-color: #121212; color: white; margin: 0; padding: 0; }
         .table-xs { font-size: 0.68rem; width: 100% !important; }
 
-        /* Alternating Colors */
+        /* Row Alternating Colors */
         .group-blue td { background-color: #87CEFA !important; color: #000 !important; }
         .group-black td { background-color: #f6f4f4 !important; color: #0b0a0a !important; }
 
-        /* Sticky Header */
-        .sticky-header th { background-color: #0d6efd !important; color: white !important; }
-        .filter-header { background-color: #212529 !important; display: none; }
-        .strike-col { background-color: #ffc107 !important; color: black !important; font-weight: bold !important; }
+        /* Header Custom Colors */
+        .sticky-header th { color: white !important; cursor: move; border: 1px solid #444 !important; }
 
-        /* Controls UI */
+        /* CE (Calls) Headers - Light Red */
+        .ce-head { background-color: #f18c8b !important; color: black !important; }
+
+        /* PE (Puts) Headers - Light Green */
+        .pe-head { background-color: #90ee90 !important; color: black !important; }
+
+        /* Global/Neutral Headers */
+        .neutral-head { background-color: #0d6efd !important; color: white !important; }
+
+        /* Strike Column Styling - Light Grey */
+        .strike-col { background-color: #0b0a0a !important; color: black !important; font-weight: bolder !important; }
+
+        .filter-header { background-color: #212529 !important; display: none; }
+
         .controls {
             position: fixed; bottom: 20px; right: 30px; z-index: 2000;
-            background: rgba(0, 0, 0, 0.9); padding: 15px; border-radius: 10px; border: 2px solid #0d6efd;
+            background: rgba(0, 0, 0, 0.9); padding: 15px; border-radius: 10px;
+            border: 2px solid #0d6efd; width: 200px;
         }
+        .form-select-sm { font-size: 0.75rem; background: #333; color: white; border-color: #444; }
 
-        /* Adjust DataTables elements for dark mode */
-        .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate {
-            color: #ccc !important;
-            font-size: 0.8rem;
-            margin: 10px;
-        }
-        select { background-color: #333; color: white; }
+}
     </style>
 </head>
 <body>
 
     <div class="controls text-center">
-        <div class="mb-2">
-            <small class="text-secondary">Last Sync:</small><br>
-            <strong id="syncTime" class="text-warning">Connecting...</strong>
+        <div class="mb-2">Sync: <strong id="syncTime" class="text-warning">...</strong></div>
+        <button id="refreshBtn" class="btn btn-danger btn-sm w-100 mb-2" onclick="toggleRefresh()">Stop Refresh</button>
+        <button id="filterToggleBtn" class="btn btn-secondary btn-sm w-100 mb-2" onclick="toggleFilters()">Show Filters</button>
+
+        <div class="mb-2 text-start">
+            <label class="small d-block mb-1 text-center">Arrange Columns:</label>
+            <select id="layoutSelect" class="form-select form-select-sm mb-2" onchange="changeLayout(this.value)">
+                <option value="default">Default View</option>
+                <option value="greeks">Greeks Focus</option>
+                <option value="oi_vol">OI & Volume Focus</option>
+                <option value="compact">Compact (Price/Strike)</option>
+            </select>
         </div>
-        <button id="refreshBtn" class="btn btn-danger btn-sm w-100" onclick="toggleRefresh()">Stop Refreshing</button>
-        <button id="filterToggleBtn" class="btn btn-secondary btn-sm w-100 mt-2" onclick="toggleFilters()">Show Filters</button>
-        <div id="statusText" class="text-success small mt-1">Status: Running</div>
+
+        <button class="btn btn-outline-light btn-sm w-100" onclick="resetLayout()">Reset Layout</button>
     </div>
 
-    <div class="container-fluid mt-1 mb-5">
-        <table id="mainTable" class="table table-bordered text-center table-xs nowrap" style="width:100%">
+    <div class="container-fluid mt-1">
+        <table id="mainTable" class="table table-bordered text-center table-xs nowrap">
             <thead class="sticky-header">
-                <tr>
-                    <th colspan="3">Market Info</th>
-                    <th colspan="7">Calls (CE)</th>
-                    <th class="strike-col">Anchor</th>
-                    <th colspan="7">Puts (PE)</th>
-                </tr>
-                <tr>
-                    <th>Date</th><th>Time</th><th>Spot</th>
-                    <th>OI</th><th>Vol</th><th>IV</th><th>Δ</th><th>γ</th><th>θ</th><th>Price</th>
+                <tr id="titleRow">
+                    <th class="neutral-head">Date</th>
+                    <th class="neutral-head">Time</th>
+                    <th class="neutral-head">Spot</th>
+                    <th class="ce-head">CE_OI</th>
+                    <th class="ce-head">CE_Vol</th>
+                    <th class="ce-head">CE_IV</th>
+                    <th class="ce-head">CE_Δ</th>
+                    <th class="ce-head">CE_γ</th>
+                    <th class="ce-head">CE_θ</th>
+                    <th class="ce-head">CE_Price</th>
                     <th class="strike-col">STRIKE</th>
-                    <th>Price</th><th>θ</th><th>γ</th><th>Δ</th><th>IV</th><th>Vol</th><th>OI</th>
+                    <th class="pe-head">PE_Price</th>
+                    <th class="pe-head">PE_θ</th>
+                    <th class="pe-head">PE_γ</th>
+                    <th class="pe-head">PE_Δ</th>
+                    <th class="pe-head">PE_IV</th>
+                    <th class="pe-head">PE_Vol</th>
+                    <th class="pe-head">PE_OI</th>
                 </tr>
                 <tr id="filterRow" class="filter-header">
-                    <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                    <th></th><th></th><th></th>
+                    <th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th>
                     <th class="strike-col"></th>
-                    <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                    <th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -87,8 +95,7 @@
     </div>
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/v/bs5/dt-1.13.6/cr-1.7.0/datatables.min.js"></script>
 
     <script>
         let isPaused = false;
@@ -96,65 +103,67 @@
 
         $(document).ready(function() {
             table = $('#mainTable').DataTable({
-                "ajax": { "url": "/get_data", "dataSrc": "data" },
-                "columns": [
-                    { "data": "Date" }, { "data": "Time" }, { "data": "Spot_price" },
-                    { "data": "ce_oi" }, { "data": "ce_volume" }, { "data": "ce_IV" },
-                    { "data": "ce_delta" }, { "data": "ce_gamma" }, { "data": "ce_theta" },
-                    { "data": "ce_price" }, { "data": "Strike_price" },
-                    { "data": "pe_price" }, { "data": "pe_theta" }, { "data": "pe_gamma" },
-                    { "data": "pe_delta" }, { "data": "pe_IV" }, { "data": "pe_volume" }, { "data": "pe_oi" }
+                ajax: { url: "/get_data", dataSrc: "data" },
+                columns: [
+                    { data: "date" }, { data: "time" }, { data: "spot_price" },
+                    { data: "ce_oi" }, { data: "ce_volume" }, { data: "ce_iv" },
+                    { data: "ce_delta" }, { data: "ce_gamma" }, { data: "ce_theta" },
+                    { data: "ce_price" },
+                    { data: "strike_price", className: "strike-col" },
+                    { data: "pe_price" }, { data: "pe_theta" }, { data: "pe_gamma" },
+                    { data: "pe_delta" }, { data: "pe_iv" }, { data: "pe_volume" }, { data: "pe_oi" }
                 ],
-                // 2. HIGHEST TIME FIRST BY DEFAULT (Column Index 1 is Time)
-                "order": [[1, "desc"]],
-
-                // 3. SHOW ENTRIES OPTION TILL 1000
-                "lengthMenu": [[31, 100, 500, 1000], [31, 100, 500, 1000]],
-                "pageLength": 31,
-
-                "createdRow": function(row, data, dataIndex) {
+                colReorder: true,
+                order: [[1, "desc"]],
+                pageLength: 31,
+                lengthMenu: [[10, 31, 50, 100, 500, 1000, -1], [10, 31, 50, 100, 500, 1000, "All"]],
+                createdRow: function(row, data, dataIndex) {
                     let groupNum = Math.floor(dataIndex / 31) % 2;
                     $(row).addClass(groupNum === 0 ? 'group-blue' : 'group-black');
-                    $('td', row).eq(10).addClass('strike-col');
                 },
                 initComplete: function () {
                     this.api().columns().every(function (index) {
                         var column = this;
                         var select = $('<select style="width:100%; font-size:0.6rem; background:#333; color:white;"><option value="">All</option></select>')
                             .appendTo($(`#filterRow th`).eq(index))
-                            .on('change', function () {
-                                var val = $.fn.dataTable.util.escapeRegex($(this).val());
-                                column.search(val ? '^' + val + '$' : '', true, false).draw();
-                            });
+                            .on('change', function () { column.search($(this).val()).draw(); });
 
-                        column.data().unique().sort().each(function (d) {
-                            if(d) select.append('<option value="'+d+'">'+d+'</option>');
-                        });
+                        column.data().unique().sort().each(function (d) { if(d) select.append('<option value="'+d+'">'+d+'</option>'); });
                     });
                 }
             });
 
             setInterval(function() {
                 if (!isPaused) {
-                    table.ajax.reload(function(json) {
-                        $('#syncTime').text(json.last_updated);
-                    }, false); // 'false' keeps the current page/sorting intact
+                    table.ajax.reload(function(json) { if(json.last_updated) $('#syncTime').text(json.last_updated); }, false);
                 }
             }, 4000);
         });
 
-        function toggleFilters() {
-            $('#filterRow').toggle();
-            $('#filterToggleBtn').text($('#filterRow').is(':visible') ? "Hide Filters" : "Show Filters")
-                                .toggleClass('btn-secondary btn-warning');
-            table.columns.adjust().draw();
+        function changeLayout(val) {
+            let order = [];
+            if (val === 'default') {
+                order = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+            } else if (val === 'greeks') {
+                order = [1, 2, 6, 7, 8, 10, 12, 13, 14, 0, 3, 4, 5, 9, 11, 15, 16, 17];
+            } else if (val === 'oi_vol') {
+                order = [1, 3, 4, 10, 16, 17, 0, 2, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15];
+            } else if (val === 'compact') {
+                order = [1, 9, 10, 11, 0, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16, 17];
+            }
+
+            <!-- #add a order here for only getting the oi data of ce and pe at near colums -->
+            table.colReorder.order(order, true);
         }
 
-        function toggleRefresh() {
-            isPaused = !isPaused;
-            $('#refreshBtn').text(isPaused ? "Start Refreshing" : "Stop Refreshing").toggleClass('btn-danger btn-success');
-            $('#statusText').text(isPaused ? "Status: Paused" : "Status: Running").toggleClass('text-success text-danger');
+        function resetLayout() {
+            table.colReorder.reset();
+            $('#layoutSelect').val('default');
+            window.location.reload();
         }
+
+        function toggleFilters() { $('#filterRow').toggle(); table.columns.adjust().draw(); }
+        function toggleRefresh() { isPaused = !isPaused; $('#refreshBtn').toggleClass('btn-danger btn-success').text(isPaused ? "Start" : "Stop"); }
     </script>
 </body>
 </html>

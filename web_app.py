@@ -3,7 +3,13 @@ import mysql.connector
 import datetime
 
 app = Flask(__name__)
-DB_CONFIG = {"host": "localhost", "user": "root", "password": "qwerty123456", "database": "analyzer_db"}
+
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "root",
+    "password": "qwerty123456",
+    "database": "analyzer_db"
+}
 
 
 @app.route('/')
@@ -16,25 +22,33 @@ def get_data_api():
     try:
         conn = mysql.connector.connect(**DB_CONFIG)
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM NIFTY_OC_HISTORICAL ORDER BY Date DESC, Time DESC, Strike_price DESC LIMIT 2000"
+        # Fetch data
+        query = "SELECT * FROM NIFTY_OC_HISTORICAL ORDER BY Date DESC, Time DESC, Strike_price DESC LIMIT 5000"
         cursor.execute(query)
         rows = cursor.fetchall()
 
+        processed_rows = []
         for row in rows:
+            # Force all keys to lowercase and convert objects to strings
+            new_row = {}
             for key, value in row.items():
+                clean_key = key.lower()
                 if isinstance(value, (datetime.timedelta, datetime.date)):
-                    row[key] = str(value)
+                    new_row[clean_key] = str(value)
+                else:
+                    new_row[clean_key] = value
+            processed_rows.append(new_row)
 
         cursor.close()
         conn.close()
 
-        # Return both the data and the current server time
         return jsonify({
-            "data": rows,
+            "data": processed_rows,
             "last_updated": datetime.datetime.now().strftime("%H:%M:%S")
         })
     except Exception as e:
-        return jsonify({"error": str(e)})
+        print(f"Error: {e}")
+        return jsonify({"data": [], "error": str(e)})
 
 
 if __name__ == '__main__':
