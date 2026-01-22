@@ -1,83 +1,88 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Nifty Pro Analyzer - Dropdown Filters</title>
+    <title>Nifty Live Pro Analyzer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
 
     <style>
-        body { border: 8px solid #0d6efd; min-height: 100vh; background-color: #121212; color: white; }
-        .table-xs { font-size: 0.7rem; }
-
-        /* Alternating Group Colors */
-        .group-blue td { background-color: #87CEFA !important; color: #000 !important; }
-        .group-black td { background-color: #f8f6f6 !important; color: #101010 !important; }
-
-        /* Sticky Headers */
-        .sticky-header th { background-color: #0d6efd !important; color: white !important; vertical-align: middle; }
-        .filter-header { background-color: #212529 !important; }
-        .strike-col { background-color: #ffc107 !important; color: black !important; font-weight: bold !important; }
-
-        /* Dropdown Styling */
-        select.column-filter {
-            width: 100%;
-            font-size: 0.65rem;
-            background-color: #333;
+        /* 1. INCREASE TABLE SIZE TO FIT WEB PAGE */
+        body {
+            border: 6px solid #0d6efd;
+            min-height: 100vh;
+            background-color: #121212;
             color: white;
-            border: 1px solid #555;
-            border-radius: 3px;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scroll on body */
         }
 
+        .container-fluid {
+            padding-left: 5px;
+            padding-right: 5px;
+            width: 100% !important;
+        }
+
+        .table-xs { font-size: 0.68rem; width: 100% !important; }
+
+        /* Alternating Colors */
+        .group-blue td { background-color: #87CEFA !important; color: #000 !important; }
+        .group-black td { background-color: #f6f4f4 !important; color: #0b0a0a !important; }
+
+        /* Sticky Header */
+        .sticky-header th { background-color: #0d6efd !important; color: white !important; }
+        .filter-header { background-color: #212529 !important; display: none; }
+        .strike-col { background-color: #ffc107 !important; color: black !important; font-weight: bold !important; }
+
+        /* Controls UI */
         .controls {
             position: fixed; bottom: 20px; right: 30px; z-index: 2000;
             background: rgba(0, 0, 0, 0.9); padding: 15px; border-radius: 10px; border: 2px solid #0d6efd;
         }
+
+        /* Adjust DataTables elements for dark mode */
+        .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate {
+            color: #ccc !important;
+            font-size: 0.8rem;
+            margin: 10px;
+        }
+        select { background-color: #333; color: white; }
     </style>
 </head>
 <body>
 
     <div class="controls text-center">
+        <div class="mb-2">
+            <small class="text-secondary">Last Sync:</small><br>
+            <strong id="syncTime" class="text-warning">Connecting...</strong>
+        </div>
         <button id="refreshBtn" class="btn btn-danger btn-sm w-100" onclick="toggleRefresh()">Stop Refreshing</button>
+        <button id="filterToggleBtn" class="btn btn-secondary btn-sm w-100 mt-2" onclick="toggleFilters()">Show Filters</button>
         <div id="statusText" class="text-success small mt-1">Status: Running</div>
     </div>
 
-    <div class="container-fluid mt-2 mb-5">
-        <table id="mainTable" class="table table-bordered text-center table-xs">
+    <div class="container-fluid mt-1 mb-5">
+        <table id="mainTable" class="table table-bordered text-center table-xs nowrap" style="width:100%">
             <thead class="sticky-header">
                 <tr>
-                    <th colspan="3">Market</th>
+                    <th colspan="3">Market Info</th>
                     <th colspan="7">Calls (CE)</th>
                     <th class="strike-col">Anchor</th>
                     <th colspan="7">Puts (PE)</th>
                 </tr>
-                <tr id="titleRow">
+                <tr>
                     <th>Date</th><th>Time</th><th>Spot</th>
                     <th>OI</th><th>Vol</th><th>IV</th><th>Δ</th><th>γ</th><th>θ</th><th>Price</th>
                     <th class="strike-col">STRIKE</th>
                     <th>Price</th><th>θ</th><th>γ</th><th>Δ</th><th>IV</th><th>Vol</th><th>OI</th>
                 </tr>
                 <tr id="filterRow" class="filter-header">
-                    <th></th><th></th><th></th>
-                    <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                    <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
                     <th class="strike-col"></th>
                     <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
                 </tr>
             </thead>
-            <tbody>
-                {% for row in data %}
-                    {% set group_num = (loop.index0 // 31) % 2 %}
-                    <tr class="{{ 'group-blue' if group_num == 0 else 'group-black' }}">
-                        <td>{{ row.Date }}</td><td>{{ row.Time }}</td><td>{{ row.Spot_price }}</td>
-                        <td>{{ row.ce_oi }}</td><td>{{ row.ce_volume }}</td><td>{{ row.ce_IV }}</td>
-                        <td>{{ row.ce_delta }}</td><td>{{ row.ce_gamma }}</td><td>{{ row.ce_theta }}</td>
-                        <td>{{ row.ce_price }}</td>
-                        <td class="strike-col">{{ row.Strike_price }}</td>
-                        <td>{{ row.pe_price }}</td><td>{{ row.pe_theta }}</td><td>{{ row.pe_gamma }}</td>
-                        <td>{{ row.pe_delta }}</td><td>{{ row.pe_IV }}</td><td>{{ row.pe_volume }}</td>
-                        <td>{{ row.pe_oi }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
+            <tbody></tbody>
         </table>
     </div>
 
@@ -87,46 +92,68 @@
 
     <script>
         let isPaused = false;
+        let table;
 
         $(document).ready(function() {
-            var table = $('#mainTable').DataTable({
-                "pageLength": 100,
-                "order": [],
+            table = $('#mainTable').DataTable({
+                "ajax": { "url": "/get_data", "dataSrc": "data" },
+                "columns": [
+                    { "data": "Date" }, { "data": "Time" }, { "data": "Spot_price" },
+                    { "data": "ce_oi" }, { "data": "ce_volume" }, { "data": "ce_IV" },
+                    { "data": "ce_delta" }, { "data": "ce_gamma" }, { "data": "ce_theta" },
+                    { "data": "ce_price" }, { "data": "Strike_price" },
+                    { "data": "pe_price" }, { "data": "pe_theta" }, { "data": "pe_gamma" },
+                    { "data": "pe_delta" }, { "data": "pe_IV" }, { "data": "pe_volume" }, { "data": "pe_oi" }
+                ],
+                // 2. HIGHEST TIME FIRST BY DEFAULT (Column Index 1 is Time)
+                "order": [[1, "desc"]],
+
+                // 3. SHOW ENTRIES OPTION TILL 1000
+                "lengthMenu": [[31, 100, 500, 1000], [31, 100, 500, 1000]],
+                "pageLength": 31,
+
+                "createdRow": function(row, data, dataIndex) {
+                    let groupNum = Math.floor(dataIndex / 31) % 2;
+                    $(row).addClass(groupNum === 0 ? 'group-blue' : 'group-black');
+                    $('td', row).eq(10).addClass('strike-col');
+                },
                 initComplete: function () {
                     this.api().columns().every(function (index) {
                         var column = this;
-                        // Create select element and append to the specific filterRow cell
-                        var select = $('<select class="column-filter"><option value="">All</option></select>')
+                        var select = $('<select style="width:100%; font-size:0.6rem; background:#333; color:white;"><option value="">All</option></select>')
                             .appendTo($(`#filterRow th`).eq(index))
                             .on('change', function () {
                                 var val = $.fn.dataTable.util.escapeRegex($(this).val());
                                 column.search(val ? '^' + val + '$' : '', true, false).draw();
                             });
 
-                        // Get unique values from the column and add to dropdown
-                        column.data().unique().sort().each(function (d, j) {
-                            // Strip HTML if present for the dropdown text
-                            var cleanText = d.replace(/<\/?[^>]+(>|$)/g, "");
-                            select.append('<option value="' + cleanText + '">' + cleanText + '</option>');
+                        column.data().unique().sort().each(function (d) {
+                            if(d) select.append('<option value="'+d+'">'+d+'</option>');
                         });
                     });
                 }
             });
+
+            setInterval(function() {
+                if (!isPaused) {
+                    table.ajax.reload(function(json) {
+                        $('#syncTime').text(json.last_updated);
+                    }, false); // 'false' keeps the current page/sorting intact
+                }
+            }, 4000);
         });
 
-        // 4-Second Auto Refresh
-        setInterval(function() {
-            if (!isPaused) {
-                window.location.reload();
-            }
-        }, 4000);
+        function toggleFilters() {
+            $('#filterRow').toggle();
+            $('#filterToggleBtn').text($('#filterRow').is(':visible') ? "Hide Filters" : "Show Filters")
+                                .toggleClass('btn-secondary btn-warning');
+            table.columns.adjust().draw();
+        }
 
         function toggleRefresh() {
             isPaused = !isPaused;
-            document.getElementById('refreshBtn').innerText = isPaused ? "Start Refreshing" : "Stop Refreshing";
-            document.getElementById('refreshBtn').className = isPaused ? "btn btn-success btn-sm w-100" : "btn btn-danger btn-sm w-100";
-            document.getElementById('statusText').innerText = isPaused ? "Status: Paused" : "Status: Running";
-            document.getElementById('statusText').className = isPaused ? "text-danger small mt-1" : "text-success small mt-1";
+            $('#refreshBtn').text(isPaused ? "Start Refreshing" : "Stop Refreshing").toggleClass('btn-danger btn-success');
+            $('#statusText').text(isPaused ? "Status: Paused" : "Status: Running").toggleClass('text-success text-danger');
         }
     </script>
 </body>
