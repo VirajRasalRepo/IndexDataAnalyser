@@ -22,14 +22,14 @@ def get_data_api():
     try:
         conn = mysql.connector.connect(**DB_CONFIG)
         cursor = conn.cursor(dictionary=True)
-        # Fetch data
-        query = "SELECT * FROM NIFTY_OC_HISTORICAL ORDER BY Date DESC, Time DESC, Strike_price DESC LIMIT 5000"
+        # Fetch data - includes your new OI_Diff column
+        query = "SELECT * FROM NIFTY_OC_HISTORICAL ORDER BY Date DESC, Time DESC, Strike_price DESC LIMIT 2000"
         cursor.execute(query)
         rows = cursor.fetchall()
 
         processed_rows = []
         for row in rows:
-            # Force all keys to lowercase and convert objects to strings
+            # Force all keys to lowercase for consistent frontend mapping
             new_row = {}
             for key, value in row.items():
                 clean_key = key.lower()

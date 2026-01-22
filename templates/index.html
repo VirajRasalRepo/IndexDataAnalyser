@@ -15,20 +15,17 @@
 
         /* Header Custom Colors */
         .sticky-header th { color: white !important; cursor: move; border: 1px solid #444 !important; }
-
-        /* CE (Calls) Headers - Light Red */
-        .ce-head { background-color: #f18c8b !important; color: black !important; }
-
-        /* PE (Puts) Headers - Light Green */
-        .pe-head { background-color: #90ee90 !important; color: black !important; }
-
-        /* Global/Neutral Headers */
+        .ce-head { background-color: #ffcccb !important; color: black !important; } /* Light Red */
+        .pe-head { background-color: #90ee90 !important; color: black !important; } /* Light Green */
         .neutral-head { background-color: #0d6efd !important; color: white !important; }
 
-        /* Strike Column Styling - Light Grey */
-        .strike-col { background-color: #0b0a0a !important; color: black !important; font-weight: bolder !important; }
+        /* Strike & OI Diff Styling */
+        .strike-col { background-color: #d3d3d3 !important; color: black !important; font-weight: bold !important; }
+        .diff-col { font-weight: bold !important; background-color: #222 !important; }
+        .info-col {background-color: #0b0b0b !important; color: black !important;}
+        .highlight-16 {background-color: #4B0082 !important; color: white !important;font-weight: bold !important;}
 
-        .filter-header { background-color: #212529 !important; display: none; }
+        .filter-header { background-color: #090909 !important; display: none;color: #edeaea !important; }
 
         .controls {
             position: fixed; bottom: 20px; right: 30px; z-index: 2000;
@@ -36,8 +33,6 @@
             border: 2px solid #0d6efd; width: 200px;
         }
         .form-select-sm { font-size: 0.75rem; background: #333; color: white; border-color: #444; }
-
-}
     </style>
 </head>
 <body>
@@ -53,7 +48,6 @@
                 <option value="default">Default View</option>
                 <option value="greeks">Greeks Focus</option>
                 <option value="oi_vol">OI & Volume Focus</option>
-                <option value="compact">Compact (Price/Strike)</option>
             </select>
         </div>
 
@@ -64,29 +58,19 @@
         <table id="mainTable" class="table table-bordered text-center table-xs nowrap">
             <thead class="sticky-header">
                 <tr id="titleRow">
-                    <th class="neutral-head">Date</th>
-                    <th class="neutral-head">Time</th>
-                    <th class="neutral-head">Spot</th>
-                    <th class="ce-head">CE_OI</th>
-                    <th class="ce-head">CE_Vol</th>
-                    <th class="ce-head">CE_IV</th>
-                    <th class="ce-head">CE_Δ</th>
-                    <th class="ce-head">CE_γ</th>
-                    <th class="ce-head">CE_θ</th>
-                    <th class="ce-head">CE_Price</th>
+                    <th class="neutral-head">Date</th><th class="neutral-head">Time</th><th class="neutral-head">Spot</th>
+                    <th class="ce-head">CE_OI</th><th class="ce-head">CE_Vol</th><th class="ce-head">CE_IV</th>
+                    <th class="ce-head">CE_Δ</th><th class="ce-head">CE_γ</th><th class="ce-head">CE_θ</th><th class="ce-head">CE_Price</th>
                     <th class="strike-col">STRIKE</th>
-                    <th class="pe-head">PE_Price</th>
-                    <th class="pe-head">PE_θ</th>
-                    <th class="pe-head">PE_γ</th>
-                    <th class="pe-head">PE_Δ</th>
-                    <th class="pe-head">PE_IV</th>
-                    <th class="pe-head">PE_Vol</th>
-                    <th class="pe-head">PE_OI</th>
+                    <th class="diff-col">OI DIFF</th>
+                    <th class="pe-head">PE_Price</th><th class="pe-head">PE_θ</th><th class="pe-head">PE_γ</th>
+                    <th class="pe-head">PE_Δ</th><th class="pe-head">PE_IV</th><th class="pe-head">PE_Vol</th><th class="pe-head">PE_OI</th>
                 </tr>
                 <tr id="filterRow" class="filter-header">
                     <th></th><th></th><th></th>
                     <th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th><th class="ce-head"></th>
                     <th class="strike-col"></th>
+                    <th class="diff-col"></th>
                     <th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th><th class="pe-head"></th>
                 </tr>
             </thead>
@@ -110,6 +94,16 @@
                     { data: "ce_delta" }, { data: "ce_gamma" }, { data: "ce_theta" },
                     { data: "ce_price" },
                     { data: "strike_price", className: "strike-col" },
+                    {
+                        data: "oi_diff",
+                        className: "diff-col",
+                        render: function(data) { return data ? Number(data).toLocaleString() : "0"; },
+                        createdCell: function (td, cellData) {
+                            let val = parseFloat(cellData);
+                            if (val < 0) $(td).css('color', '#ff4d4d'); // Red
+                            else if (val > 0) $(td).css('color', '#00ff00'); // Green
+                        }
+                    },
                     { data: "pe_price" }, { data: "pe_theta" }, { data: "pe_gamma" },
                     { data: "pe_delta" }, { data: "pe_iv" }, { data: "pe_volume" }, { data: "pe_oi" }
                 ],
@@ -118,16 +112,21 @@
                 pageLength: 31,
                 lengthMenu: [[10, 31, 50, 100, 500, 1000, -1], [10, 31, 50, 100, 500, 1000, "All"]],
                 createdRow: function(row, data, dataIndex) {
-                    let groupNum = Math.floor(dataIndex / 31) % 2;
-                    $(row).addClass(groupNum === 0 ? 'group-blue' : 'group-black');
-                },
+                        // 1. Highlight every 16th row (0, 16, 32, etc.)
+                        if ((dataIndex + 1) % 16 === 0) {
+                            $(row).addClass('highlight-16');
+                        } else {
+                            // 2. Otherwise, apply your existing alternating group colors
+                            let groupNum = Math.floor(dataIndex / 31) % 2;
+                            $(row).addClass(groupNum === 0 ? 'group-blue' : 'group-black');
+                        }
+},
                 initComplete: function () {
                     this.api().columns().every(function (index) {
                         var column = this;
-                        var select = $('<select style="width:100%; font-size:0.6rem; background:#333; color:white;"><option value="">All</option></select>')
+                        var select = $('<select style="width:100%; font-size:0.6rem; background:#333; color:#0b0a0a;"><option value="">All</option></select>')
                             .appendTo($(`#filterRow th`).eq(index))
                             .on('change', function () { column.search($(this).val()).draw(); });
-
                         column.data().unique().sort().each(function (d) { if(d) select.append('<option value="'+d+'">'+d+'</option>'); });
                     });
                 }
@@ -142,26 +141,13 @@
 
         function changeLayout(val) {
             let order = [];
-            if (val === 'default') {
-                order = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-            } else if (val === 'greeks') {
-                order = [1, 2, 6, 7, 8, 10, 12, 13, 14, 0, 3, 4, 5, 9, 11, 15, 16, 17];
-            } else if (val === 'oi_vol') {
-                order = [1, 3, 4, 10, 16, 17, 0, 2, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15];
-            } else if (val === 'compact') {
-                order = [1, 9, 10, 11, 0, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16, 17];
-            }
-
-            <!-- #add a order here for only getting the oi data of ce and pe at near colums -->
+            if (val === 'default') order = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+            else if (val === 'greeks') order = [1, 10, 11, 6, 7, 8, 13, 14, 15, 0, 2, 3, 4, 5, 9, 12, 16, 17, 18];
+            else if (val === 'oi_vol') order = [1, 10, 11, 3, 4, 17, 18, 0, 2, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16];
             table.colReorder.order(order, true);
         }
 
-        function resetLayout() {
-            table.colReorder.reset();
-            $('#layoutSelect').val('default');
-            window.location.reload();
-        }
-
+        function resetLayout() { table.colReorder.reset(); window.location.reload(); }
         function toggleFilters() { $('#filterRow').toggle(); table.columns.adjust().draw(); }
         function toggleRefresh() { isPaused = !isPaused; $('#refreshBtn').toggleClass('btn-danger btn-success').text(isPaused ? "Start" : "Stop"); }
     </script>
