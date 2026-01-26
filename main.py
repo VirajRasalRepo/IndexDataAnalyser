@@ -37,7 +37,7 @@ def run_pipeline():
             current_time_now = now.time()
 
             # Market Hours: 09:15 to 15:30, Monday to Friday
-            if 1 == 1 : #dt_time(9, 15) <= current_time_now <= dt_time(15, 30) and now.weekday() < 5:
+            if dt_time(9, 15) <= current_time_now <= dt_time(15, 30) and now.weekday() < 5:
                 db_connection = None
                 try:
                     db_connection = mysql.connector.connect(**DB_CONFIG)
