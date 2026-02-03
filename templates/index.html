@@ -18,7 +18,6 @@
         }
         .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; border-bottom: 1px solid #444; padding-bottom: 5px; }
 
-        /* Minimize Button Style */
         .min-btn {
             background: none; border: 1px solid #444; color: #ffc107;
             border-radius: 4px; padding: 0 8px; font-weight: bold; cursor: pointer;
@@ -26,7 +25,6 @@
         }
         .min-btn:hover { background: #333; }
 
-        /* Table Styling */
         .group-blue td { background-color: #87CEFA !important; color: #000 !important; }
         .group-black td { background-color: #f6f4f4 !important; color: #0b0a0a !important; }
         .highlight-16 { background-color: #4B0082 !important; color: white !important; font-weight: bold !important; }
@@ -37,7 +35,6 @@
         .strike-col { background-color: #d3d3d3 !important; color: black !important; font-weight: bold !important; }
         .diff-col { font-weight: bold !important; background-color: #222 !important; }
 
-        /* Dropdown Styling */
         .filter-row th { background-color: #1a1a1a !important; padding: 2px !important; }
         .column-select {
             width: 100%;
@@ -119,14 +116,34 @@
         let table;
 
         $(document).ready(function() {
-            window.JSZip = window.JSZip;
-
             table = $('#mainTable').DataTable({
                 ajax: { url: "/get_data", dataSrc: "data" },
                 dom: 'lBrtip',
                 lengthMenu: [[31, 100, 500, 1000, 2000], [31, 100, 500, 1000, 2000]],
                 pageLength: 31,
-                buttons: [{ extend: 'excelHtml5', title: 'Nifty_Live_Terminal', exportOptions: { columns: ':visible' }}],
+                buttons: [
+                    {
+                        extend: 'excelHtml5',
+                        // Dynamic filename logic
+                        filename: function() {
+                            const now = new Date();
+                            const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
+                            const time = now.getHours().toString().padStart(2, '0') + "-" +
+                                         now.getMinutes().toString().padStart(2, '0') + "-" +
+                                         now.getSeconds().toString().padStart(2, '0');
+                            return 'Nifty_Live_Terminal_' + date + '_' + time;
+                        },
+                        title: 'Nifty Live Terminal Data',
+                        exportOptions: {
+                            columns: ':visible',
+                            format: {
+                                header: function (data, columnIdx) {
+                                    return $('#titleRow th').eq(columnIdx).text();
+                                }
+                            }
+                        }
+                    }
+                ],
                 columns: [
                     { data: "date" }, { data: "time" }, { data: "spot_price" },
                     { data: "ce_oi", render: (d, t) => t==='display'?(d?Number(d).toLocaleString():"0"):d },
@@ -159,14 +176,21 @@
                 }
             });
 
-            $('#btnExcel').on('click', () => table.button('.buttons-excel').trigger());
+            table.on('xhr', function() {
+                const now = new Date();
+                $('#syncTime').text(now.toLocaleTimeString());
+            });
 
-            setInterval(() => {
+            $('#btnExcel').on('click', function() {
+                // This triggers the first button in the buttons collection (the excel button)
+                table.button(0).trigger();
+            });
+
+            setInterval(function() {
                 if (!isPaused) {
                     table.ajax.reload(null, false);
-                    $('#syncTime').text(new Date().toLocaleTimeString());
                 }
-            }, 4000);
+            }, 5000);
         });
 
         function toggleControlPanel() {

@@ -7,7 +7,7 @@ import Utilities
 
 # --- CONFIGURATION ---
 CLIENT_ID = "1107702034"
-ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzY5NTc4OTY0LCJpYXQiOjE3Njk0OTI1NjQsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTA3NzAyMDM0In0.GYy-h6R0EPN4zZMd6tdNQwdgwGadhQiuu-5vqsBK1ARgFIOFY0TQyF_V2nvdg7-nYr3PGssYmxJFvZKyyMF13g"
+ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzcwMjE4MzQxLCJpYXQiOjE3NzAxMzE5NDEsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTA3NzAyMDM0In0.uPpqm8xW1v9xd8q8GzKYgNz3o9cReIfd8oqkeiH8CyDVR4DGMtS_I7Bys4OhdsK_yMh6FSTtjXFvi2PXzasiLQ"
 DB_CONFIG = {
     "host": "localhost",
     "user": "root",
@@ -17,13 +17,11 @@ DB_CONFIG = {
 
 dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 
-
 def run_pipeline():
     try:
         # Get expiry once at the start
         expiry_data = Utilities.get_expiry_list(dhan)
 
-        # If the utility returns a list, take the first element (nearest expiry)
         if isinstance(expiry_data, list) and len(expiry_data) > 0:
             expiry = expiry_data[0]
         else:
@@ -37,11 +35,8 @@ def run_pipeline():
 
         while True:
             now = datetime.now()
-            current_time_now = now.time()
-
-            # Market Hours Check (Uncomment if needed)
-            # if dt_time(9, 15) <= current_time_now <= dt_time(15, 30) and now.weekday() < 5:
-            if True:
+            # Market Hours Check: Monday-Friday, 09:15 to 15:30
+            if 1==1 : #dt_time(9, 15) <= now.time() <= dt_time(15, 30) and now.weekday() < 5:
                 db_connection = None
                 try:
                     db_connection = mysql.connector.connect(**DB_CONFIG)
@@ -54,10 +49,7 @@ def run_pipeline():
                     )
 
                     if response.get('status') == 'success':
-                        # Safety check for nested dictionary structure
                         data_payload = response.get('data', {})
-
-                        # Handle different versions of the Dhan response structure
                         inner_data = data_payload.get('data', data_payload)
                         oc_data = inner_data.get('oc', {})
                         spot_price = inner_data.get('last_price', 0)
@@ -76,14 +68,13 @@ def run_pipeline():
                         Max_Strike = ATM_Strike + (15 * strike_step)
 
                         insert_query = """
-                                       INSERT INTO NIFTY_OC_HISTORICAL
-                                       (Date, Time, Spot_price, Strike_price, ce_oi, ce_volume, ce_IV,
-                                        ce_delta, ce_gamma, ce_theta, ce_price, ce_vega,
-                                        pe_oi, pe_volume, pe_IV, pe_delta, pe_gamma,
-                                        pe_theta, pe_price, pe_vega)
-                                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, \
-                                               %s, %s) \
-                                       """
+                            INSERT INTO NIFTY_OC_HISTORICAL 
+                            (Date, Time, Spot_price, Strike_price, ce_oi, ce_volume, ce_IV, 
+                            ce_delta, ce_gamma, ce_theta, ce_price, ce_vega, 
+                            pe_oi, pe_volume, pe_IV, pe_delta, pe_gamma, 
+                            pe_theta, pe_price, pe_vega)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """
 
                         stored_count = 0
                         for strike_str, strike_values in oc_data.items():
@@ -92,18 +83,33 @@ def run_pipeline():
                             if Min_Strike <= strike_price <= Max_Strike:
                                 ce = strike_values.get('ce', {})
                                 pe = strike_values.get('pe', {})
-                                ce_greeks = ce.get('greeks', {})
-                                pe_greeks = pe.get('greeks', {})
+
+                                # Ensure dicts exist for greeks to avoid AttributeError
+                                ce_greeks = ce.get('greeks', {}) if ce else {}
+                                pe_greeks = pe.get('greeks', {}) if pe else {}
+
+                                # Robust price extraction: checks last_price, then ltp, then defaults to 0
+                                # This handles the 'zero price' issue if the key name is different
+                                ce_price = ce.get('last_price', ce.get('ltp', 0)) if ce else 0
+                                pe_price = pe.get('last_price', pe.get('ltp', 0)) if pe else 0
 
                                 values = (
                                     current_date, current_time_str, spot_price, strike_price,
-                                    ce.get('oi', 0), ce.get('volume', 0), ce.get('implied_volatility', 0),
-                                    ce_greeks.get('delta', 0), ce_greeks.get('gamma', 0),
-                                    ce_greeks.get('theta', 0), ce.get('last_price', 0),
+                                    ce.get('oi', 0) if ce else 0,
+                                    ce.get('volume', 0) if ce else 0,
+                                    ce.get('implied_volatility', 0) if ce else 0,
+                                    ce_greeks.get('delta', 0),
+                                    ce_greeks.get('gamma', 0),
+                                    ce_greeks.get('theta', 0),
+                                    ce_price,
                                     ce_greeks.get('vega', 0),
-                                    pe.get('oi', 0), pe.get('volume', 0), pe.get('implied_volatility', 0),
-                                    pe_greeks.get('delta', 0), pe_greeks.get('gamma', 0),
-                                    pe_greeks.get('theta', 0), pe_greeks.get('last_price', 0),
+                                    pe.get('oi', 0) if pe else 0,
+                                    pe.get('volume', 0) if pe else 0,
+                                    pe.get('implied_volatility', 0) if pe else 0,
+                                    pe_greeks.get('delta', 0),
+                                    pe_greeks.get('gamma', 0),
+                                    pe_greeks.get('theta', 0),
+                                    pe_price,
                                     pe_greeks.get('vega', 0)
                                 )
                                 cursor.execute(insert_query, values)
@@ -124,16 +130,16 @@ def run_pipeline():
                         cursor.close()
                         db_connection.close()
 
+                # Sleep 4 seconds between iterations
                 time.sleep(4)
 
             else:
-                print(f"[{now.strftime('%H:%M:%S')}] Market Closed. Sleeping...")
+                print(f"[{now.strftime('%H:%M:%S')}] Market Closed or Weekend. Sleeping...")
                 time.sleep(60)
 
     except KeyboardInterrupt:
         print("\n--- STOPPING SCRIPT ---")
         sys.exit(0)
-
 
 if __name__ == "__main__":
     run_pipeline()
